@@ -97,12 +97,12 @@ An internal web application for conducting comprehensive conversion optimization
 ## 🚧 What Needs to Be Built
 
 ### Services
-- [ ] AuditService - Main business logic
-- [ ] PuppeteerService - Browser automation
-- [ ] LighthouseService - Performance testing
-- [ ] CrawlerService - Site crawling wrapper
-- [ ] ScoringService - Calculate audit scores
-- [ ] ReportService - Generate reports
+- ✅ AuditService - Main business logic
+- ✅ PuppeteerService - Browser automation
+- ✅ LighthouseService - Performance testing
+- ✅ CrawlerService - Site crawling wrapper
+- ✅ ScoringService - Calculate audit scores
+- ✅ ReportService - Generate reports
 
 ### Controllers & Routes
 - [ ] AuditController - CRUD operations
