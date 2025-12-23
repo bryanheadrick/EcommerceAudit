@@ -94,8 +94,6 @@ An internal web application for conducting comprehensive conversion optimization
 - ✅ Job timeouts configured (300 seconds)
 - ✅ Issue detection and severity classification
 
-## 🚧 What Needs to Be Built
-
 ### Services
 - ✅ AuditService - Main business logic
 - ✅ PuppeteerService - Browser automation
@@ -105,28 +103,32 @@ An internal web application for conducting comprehensive conversion optimization
 - ✅ ReportService - Generate reports
 
 ### Controllers & Routes
-- [ ] AuditController - CRUD operations
-- [ ] ResultsController - Display results
-- [ ] ReportController - PDF generation
-- [ ] DashboardController - Overview
+- ✅ AuditController - CRUD operations
+- ✅ ResultsController - Display results
+- ✅ ReportController - PDF generation
+- ✅ DashboardController - Overview
+- ✅ AuditPolicy - Authorization for user-owned audits
 
 ### Views
-- [ ] Dashboard layout
-- [ ] Audit creation form
-- [ ] Audit results dashboard
-- [ ] Issues list (filterable)
-- [ ] Performance summary
-- [ ] Checkout flow results
-- [ ] Broken links report
-- [ ] Historical comparison
+- ✅ Dashboard layout - Stats overview and recent audits
+- ✅ Audit creation form - Simple URL and max pages input
+- ✅ Audit index - Paginated list with filtering
+- ✅ Audit results dashboard - Overview with score and quick links
+- ✅ Issues list (filterable) - Searchable by category, severity, keyword
+- ✅ Performance summary - Core Web Vitals and Lighthouse scores by device
+- ✅ Checkout flow results - Step-by-step checkout analysis
+- ✅ Broken links report - Link validation with filtering
+- ✅ Historical comparison - Compare two audits from same domain
+
+## 🚧 What Needs to Be Built
 
 ### Configuration
 - [ ] Horizon configuration and dashboard
 - [ ] Telescope configuration (dev only)
-- [ ] Custom audit configuration file
-- [ ] Integrate actual Spatie Crawler (currently placeholder)
-- [ ] Integrate actual Browsershot (currently placeholder)
-- [ ] Integrate actual Lighthouse CLI (currently placeholder)
+- ✅ Custom audit configuration file
+- ✅ Integrate actual Spatie Crawler (implemented in CrawlerService)
+- ✅ Integrate actual Browsershot (implemented in PuppeteerService)
+- ✅ Integrate actual Lighthouse CLI (implemented in LighthouseService)
 
 ### Testing
 - [ ] Unit tests for models
