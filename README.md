@@ -129,21 +129,20 @@ An internal web application for conducting comprehensive conversion optimization
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker and Docker Compose
-- Git
+### Local Development (Docker)
 
-### Installation
+**Prerequisites:** Docker and Docker Compose
 
-1. **Build and start Docker containers**
+1. **Build and start containers**
    ```bash
    docker-compose up -d --build
    ```
 
-2. **Install dependencies inside container**
+2. **Install dependencies**
    ```bash
    docker-compose exec app composer install
    docker-compose exec app npm install
+   docker-compose exec app npm run build
    ```
 
 3. **Run migrations**
@@ -151,13 +150,52 @@ An internal web application for conducting comprehensive conversion optimization
    docker-compose exec app php artisan migrate
    ```
 
-4. **Build frontend assets**
+4. **Access the application**
+   - Application: http://localhost:8000
+
+**Development mode (watch assets):**
+```bash
+docker-compose exec app npm run dev
+```
+
+### Cloudways Deployment
+
+1. **Initial Setup**
    ```bash
-   docker-compose exec app npm run build
+   # SSH into your Cloudways server
+   cd /path/to/application
+
+   # Install Composer dependencies
+   composer install --optimize-autoloader --no-dev
+
+   # Install NPM dependencies and build assets
+   npm install
+   npm run build
+
+   # Set up environment
+   cp .env.example .env
+   php artisan key:generate
+
+   # Run migrations
+   php artisan migrate --force
    ```
 
-5. **Access the application**
-   - Application: http://localhost:8000
+2. **Configure Queue Workers**
+   - Set up Supervisor to run `php artisan queue:work redis --tries=3 --timeout=300`
+   - Configure Laravel Horizon (optional, better queue monitoring)
+
+3. **Configure Scheduler**
+   - Add to crontab: `* * * * * cd /path/to/app && php artisan schedule:run >> /dev/null 2>&1`
+
+4. **Install System Dependencies**
+   - Node.js 18+ (for Puppeteer/Lighthouse)
+   - Chromium browser
+   - Install via: `npm install -g puppeteer lighthouse`
+
+5. **Environment Variables**
+   - Configure `.env` with production database credentials
+   - Set `PUPPETEER_EXECUTABLE_PATH` to Chromium location
+   - Set `LIGHTHOUSE_PATH=/usr/local/bin/lighthouse`
 
 ## 📋 Database Schema
 
