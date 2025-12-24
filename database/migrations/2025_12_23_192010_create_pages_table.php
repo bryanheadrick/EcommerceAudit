@@ -25,7 +25,7 @@ return new class extends Migration
             $table->timestamp('crawled_at')->nullable();
             $table->timestamps();
 
-            $table->index(['audit_id', 'url']);
+            $table->index('audit_id');
         });
     }
 
