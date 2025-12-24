@@ -122,7 +122,7 @@ class DashboardController extends Controller
             ->select('issues.title', 'issues.category', 'issues.severity', DB::raw('count(*) as count'))
             ->groupBy('issues.title', 'issues.category', 'issues.severity')
             ->orderBy('count', 'desc')
-            ->orderByRaw("FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')")
+            ->orderByRaw("CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 WHEN 'info' THEN 5 END")
             ->limit($limit)
             ->get()
             ->toArray();
