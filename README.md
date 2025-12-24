@@ -272,7 +272,10 @@ REDIS_PORT=6379
 QUEUE_CONNECTION=redis
 
 # Audit Tool Configuration
-LIGHTHOUSE_PATH=/usr/local/bin/lighthouse
+# Find your lighthouse path with: npm bin -g
+# Then use: {npm-bin-path}/lighthouse
+LIGHTHOUSE_PATH=/usr/bin/lighthouse
+# Or dynamically: LIGHTHOUSE_PATH=$(npm bin -g)/lighthouse
 # Do NOT set PUPPETEER_EXECUTABLE_PATH - uses bundled Chromium
 # Do NOT set PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
 
