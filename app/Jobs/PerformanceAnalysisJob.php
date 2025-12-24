@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Issue;
 use App\Models\Page;
 use App\Models\PerformanceMetric;
+use App\Services\LighthouseService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -131,171 +132,58 @@ class PerformanceAnalysisJob implements ShouldQueue
     }
 
     /**
-     * Run Lighthouse CLI audit on the page.
-     *
-     * TODO: Replace with actual Lighthouse CLI execution
+     * Run Lighthouse CLI audit on the page using LighthouseService.
      *
      * @return array
      */
     protected function runLighthouseAudit(): array
     {
-        // TODO: Implement Lighthouse CLI execution
-        // - Build command: lighthouse {url} --output=json --preset={device_type}
-        // - Set appropriate timeout (120 seconds)
-        // - Execute command and capture JSON output
-        // - Parse JSON response
-        // - Handle errors and timeouts
+        $lighthouseService = app(LighthouseService::class);
 
-        // Example command:
-        // lighthouse https://example.com --output=json --preset=mobile --chrome-flags="--headless"
+        $results = $lighthouseService->runAudit($this->page->url, $this->deviceType);
 
-        // Placeholder return
-        return [
-            'lighthouseVersion' => '10.0.0',
-            'requestedUrl' => $this->page->url,
-            'finalUrl' => $this->page->url,
-            'categories' => [
-                'performance' => ['score' => 0.85],
-                'accessibility' => ['score' => 0.90],
-                'seo' => ['score' => 0.95],
-                'best-practices' => ['score' => 0.88],
-            ],
-            'audits' => [
-                'largest-contentful-paint' => ['numericValue' => 2500],
-                'max-potential-fid' => ['numericValue' => 100],
-                'cumulative-layout-shift' => ['numericValue' => 0.1],
-                'first-contentful-paint' => ['numericValue' => 1800],
-                'server-response-time' => ['numericValue' => 600],
-                'speed-index' => ['numericValue' => 3000],
-                'total-blocking-time' => ['numericValue' => 200],
-            ],
-        ];
+        if (! $results) {
+            throw new \Exception('Lighthouse audit failed to return results');
+        }
+
+        return $results;
     }
 
     /**
-     * Extract metrics from Lighthouse results.
+     * Extract metrics from Lighthouse results using LighthouseService.
      *
      * @param array $results
      * @return array
      */
     protected function extractMetrics(array $results): array
     {
-        $audits = $results['audits'] ?? [];
-        $categories = $results['categories'] ?? [];
+        $lighthouseService = app(LighthouseService::class);
 
-        return [
-            'lcp' => isset($audits['largest-contentful-paint']['numericValue'])
-                ? $audits['largest-contentful-paint']['numericValue'] / 1000 // Convert to seconds
-                : null,
-            'fid' => isset($audits['max-potential-fid']['numericValue'])
-                ? $audits['max-potential-fid']['numericValue']
-                : null,
-            'cls' => $audits['cumulative-layout-shift']['numericValue'] ?? null,
-            'fcp' => isset($audits['first-contentful-paint']['numericValue'])
-                ? $audits['first-contentful-paint']['numericValue'] / 1000
-                : null,
-            'ttfb' => $audits['server-response-time']['numericValue'] ?? null,
-            'speed_index' => $audits['speed-index']['numericValue'] ?? null,
-            'total_blocking_time' => $audits['total-blocking-time']['numericValue'] ?? null,
-            'performance_score' => isset($categories['performance']['score'])
-                ? (int) ($categories['performance']['score'] * 100)
-                : null,
-            'accessibility_score' => isset($categories['accessibility']['score'])
-                ? (int) ($categories['accessibility']['score'] * 100)
-                : null,
-            'seo_score' => isset($categories['seo']['score'])
-                ? (int) ($categories['seo']['score'] * 100)
-                : null,
-            'best_practices_score' => isset($categories['best-practices']['score'])
-                ? (int) ($categories['best-practices']['score'] * 100)
-                : null,
-        ];
+        return $lighthouseService->extractMetrics($results);
     }
 
     /**
-     * Check performance metrics and create issues for poor scores.
+     * Check performance metrics and create issues for poor scores using LighthouseService.
      *
      * @param array $metrics
      * @return void
      */
     protected function checkPerformanceMetrics(array $metrics): void
     {
-        $deviceLabel = ucfirst($this->deviceType);
+        $lighthouseService = app(LighthouseService::class);
 
-        // Check LCP (Largest Contentful Paint)
-        // Good: < 2.5s, Needs Improvement: 2.5s - 4s, Poor: > 4s
-        if ($metrics['lcp'] !== null && $metrics['lcp'] > 4.0) {
-            Issue::create([
-                'audit_id' => $this->page->audit_id,
-                'page_id' => $this->page->id,
-                'category' => 'performance',
-                'severity' => 'critical',
-                'title' => "Poor LCP Score ({$deviceLabel})",
-                'description' => "Largest Contentful Paint is {$metrics['lcp']}s, which is considered poor (should be < 2.5s).",
-                'recommendation' => 'Optimize images, reduce server response times, eliminate render-blocking resources, and use a CDN.',
-                'metadata' => ['metric' => 'lcp', 'value' => $metrics['lcp'], 'device' => $this->deviceType],
-            ]);
-        } elseif ($metrics['lcp'] !== null && $metrics['lcp'] > 2.5) {
-            Issue::create([
-                'audit_id' => $this->page->audit_id,
-                'page_id' => $this->page->id,
-                'category' => 'performance',
-                'severity' => 'high',
-                'title' => "LCP Needs Improvement ({$deviceLabel})",
-                'description' => "Largest Contentful Paint is {$metrics['lcp']}s, which needs improvement (should be < 2.5s).",
-                'recommendation' => 'Optimize images and reduce server response times.',
-                'metadata' => ['metric' => 'lcp', 'value' => $metrics['lcp'], 'device' => $this->deviceType],
-            ]);
-        }
+        $issues = $lighthouseService->checkMetricThresholds($metrics, $this->deviceType);
 
-        // Check CLS (Cumulative Layout Shift)
-        // Good: < 0.1, Needs Improvement: 0.1 - 0.25, Poor: > 0.25
-        if ($metrics['cls'] !== null && $metrics['cls'] > 0.25) {
+        foreach ($issues as $issueData) {
             Issue::create([
                 'audit_id' => $this->page->audit_id,
                 'page_id' => $this->page->id,
-                'category' => 'performance',
-                'severity' => 'high',
-                'title' => "Poor CLS Score ({$deviceLabel})",
-                'description' => "Cumulative Layout Shift is {$metrics['cls']}, which is considered poor (should be < 0.1).",
-                'recommendation' => 'Include size attributes on images and video elements, avoid inserting content above existing content, and use CSS transforms.',
-                'metadata' => ['metric' => 'cls', 'value' => $metrics['cls'], 'device' => $this->deviceType],
-            ]);
-        } elseif ($metrics['cls'] !== null && $metrics['cls'] > 0.1) {
-            Issue::create([
-                'audit_id' => $this->page->audit_id,
-                'page_id' => $this->page->id,
-                'category' => 'performance',
-                'severity' => 'medium',
-                'title' => "CLS Needs Improvement ({$deviceLabel})",
-                'description' => "Cumulative Layout Shift is {$metrics['cls']}, which needs improvement (should be < 0.1).",
-                'recommendation' => 'Add size attributes to images and avoid dynamic content insertion.',
-                'metadata' => ['metric' => 'cls', 'value' => $metrics['cls'], 'device' => $this->deviceType],
-            ]);
-        }
-
-        // Check overall performance score
-        if ($metrics['performance_score'] !== null && $metrics['performance_score'] < 50) {
-            Issue::create([
-                'audit_id' => $this->page->audit_id,
-                'page_id' => $this->page->id,
-                'category' => 'performance',
-                'severity' => 'critical',
-                'title' => "Poor Performance Score ({$deviceLabel})",
-                'description' => "Lighthouse performance score is {$metrics['performance_score']}/100, which is poor.",
-                'recommendation' => 'Review Lighthouse report for specific recommendations. Focus on optimizing images, reducing JavaScript, and improving server response times.',
-                'metadata' => ['score' => $metrics['performance_score'], 'device' => $this->deviceType],
-            ]);
-        } elseif ($metrics['performance_score'] !== null && $metrics['performance_score'] < 75) {
-            Issue::create([
-                'audit_id' => $this->page->audit_id,
-                'page_id' => $this->page->id,
-                'category' => 'performance',
-                'severity' => 'medium',
-                'title' => "Performance Score Needs Improvement ({$deviceLabel})",
-                'description' => "Lighthouse performance score is {$metrics['performance_score']}/100.",
-                'recommendation' => 'Review Lighthouse report for optimization opportunities.',
-                'metadata' => ['score' => $metrics['performance_score'], 'device' => $this->deviceType],
+                'category' => $issueData['category'],
+                'severity' => $issueData['severity'],
+                'title' => $issueData['title'],
+                'description' => $issueData['description'],
+                'recommendation' => $issueData['recommendation'],
+                'metadata' => $issueData['metadata'],
             ]);
         }
     }

@@ -5,11 +5,13 @@ namespace App\Jobs;
 use App\Models\Issue;
 use App\Models\Link;
 use App\Models\Page;
+use App\Services\CrawlerService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
@@ -132,55 +134,60 @@ class ValidateLinksJob implements ShouldQueue
     }
 
     /**
-     * Get the HTML content of the page.
+     * Get the HTML content of the page from stored data or fetch it.
      *
      * @return string
      */
     protected function getPageHtml(): string
     {
-        // TODO: Implement page HTML fetching
-        // - Use stored html_excerpt if available
-        // - Otherwise fetch fresh HTML using HTTP client
+        if ($this->page->html_excerpt) {
+            return $this->page->html_excerpt;
+        }
 
-        return $this->page->html_excerpt ?? '<html><body><a href="https://example.com">Link</a></body></html>';
+        try {
+            $response = Http::timeout(30)->get($this->page->url);
+
+            return $response->body();
+        } catch (\Exception $e) {
+            Log::warning('Failed to fetch HTML for link validation', [
+                'page_id' => $this->page->id,
+                'url' => $this->page->url,
+                'error' => $e->getMessage(),
+            ]);
+
+            return '';
+        }
     }
 
     /**
-     * Extract all links from HTML.
+     * Extract all links from HTML using CrawlerService.
      *
      * @param string $html
      * @return \Illuminate\Support\Collection
      */
     protected function extractLinks(string $html): \Illuminate\Support\Collection
     {
-        // TODO: Implement proper HTML parsing using DOMDocument or Symfony DomCrawler
-        // - Extract all <a> tags for navigation links
-        // - Extract <img> tags for image assets
-        // - Extract <script> and <link> tags for resources
-        // - Normalize URLs (convert relative to absolute)
-        // - Determine link type based on domain and file extension
+        $crawlerService = app(CrawlerService::class);
+
+        $extractedLinks = $crawlerService->extractLinksFromHtml($html, $this->page->url);
 
         $links = collect();
 
-        // Simple regex-based extraction (replace with proper HTML parser)
-        if (preg_match_all('/<a[^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)<\/a>/is', $html, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $match) {
-                $url = $match[1];
-                $text = trim(strip_tags($match[2]));
-
-                $links->push([
-                    'url' => $this->normalizeUrl($url),
-                    'text' => $text,
-                    'type' => $this->determineLinkType($url),
-                ]);
-            }
+        foreach ($extractedLinks as $linkData) {
+            $links->push([
+                'url' => $linkData['url'],
+                'text' => $linkData['text'] ?? null,
+                'type' => $this->determineLinkType($linkData['url']),
+            ]);
         }
 
-        // Extract image sources
+        // Also extract image sources
         if (preg_match_all('/<img[^>]+src=["\']([^"\']+)["\']/is', $html, $matches)) {
             foreach ($matches[1] as $src) {
+                $absoluteUrl = $crawlerService->extractLinksFromHtml("<a href=\"{$src}\"></a>", $this->page->url)[0]['url'] ?? $src;
+
                 $links->push([
-                    'url' => $this->normalizeUrl($src),
+                    'url' => $absoluteUrl,
                     'text' => null,
                     'type' => 'asset',
                 ]);
@@ -261,7 +268,7 @@ class ValidateLinksJob implements ShouldQueue
     }
 
     /**
-     * Check the HTTP status of a link.
+     * Check the HTTP status of a link using Laravel HTTP client.
      *
      * @param string $url
      * @return int|null
@@ -273,23 +280,27 @@ class ValidateLinksJob implements ShouldQueue
             return 200;
         }
 
-        // TODO: Implement actual HTTP status checking
-        // - Use Guzzle or Laravel HTTP client
-        // - Send HEAD request (faster than GET)
-        // - Set timeout (5 seconds)
-        // - Follow redirects (max 3)
-        // - Handle timeouts and exceptions
-        // - Return status code
-
         try {
-            // Placeholder: Simulate HTTP check
-            // In real implementation, use HTTP client
-            return 200;
-        } catch (Exception $e) {
+            $response = Http::timeout(5)
+                ->withOptions(['allow_redirects' => ['max' => 3]])
+                ->head($url);
+
+            return $response->status();
+
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::warning("Connection failed for link", [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+
+        } catch (\Exception $e) {
             Log::warning("Failed to check link status", [
                 'url' => $url,
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
