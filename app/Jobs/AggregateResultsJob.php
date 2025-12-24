@@ -64,19 +64,31 @@ class AggregateResultsJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            Log::info("Aggregating results for audit {$this->audit->id}", [
+            Log::channel('audit')->info("========================================");
+            Log::channel('audit')->info("AGGREGATING RESULTS", [
                 'audit_id' => $this->audit->id,
             ]);
 
             // Update status to analyzing
             $this->audit->update(['status' => 'analyzing']);
+            Log::channel('audit')->info("Updated audit status to 'analyzing'");
 
             // Calculate category scores
+            Log::channel('audit')->info("Calculating category scores...");
             $performanceScore = $this->calculatePerformanceScore();
+            Log::channel('audit')->info("  Performance score: {$performanceScore}");
+
             $mobileScore = $this->calculateMobileScore();
+            Log::channel('audit')->info("  Mobile score: {$mobileScore}");
+
             $seoScore = $this->calculateSeoScore();
+            Log::channel('audit')->info("  SEO score: {$seoScore}");
+
             $checkoutScore = $this->calculateCheckoutScore();
+            Log::channel('audit')->info("  Checkout score: {$checkoutScore}");
+
             $linksScore = $this->calculateLinksScore();
+            Log::channel('audit')->info("  Links score: {$linksScore}");
 
             // Calculate overall score with weighted averages
             // Performance: 30%, Mobile: 25%, SEO: 20%, Checkout: 15%, Links: 10%
@@ -91,12 +103,12 @@ class AggregateResultsJob implements ShouldQueue
             // Round to nearest integer
             $overallScore = (int) round($overallScore);
 
-            Log::info("Calculated scores for audit {$this->audit->id}", [
-                'performance' => $performanceScore,
-                'mobile' => $mobileScore,
-                'seo' => $seoScore,
-                'checkout' => $checkoutScore,
-                'links' => $linksScore,
+            Log::channel('audit')->info("FINAL SCORES CALCULATED", [
+                'performance' => $performanceScore . ' (30% weight)',
+                'mobile' => $mobileScore . ' (25% weight)',
+                'seo' => $seoScore . ' (20% weight)',
+                'checkout' => $checkoutScore . ' (15% weight)',
+                'links' => $linksScore . ' (10% weight)',
                 'overall' => $overallScore,
             ]);
 
@@ -107,12 +119,15 @@ class AggregateResultsJob implements ShouldQueue
                 'status' => 'completed',
             ]);
 
-            Log::info("Successfully aggregated results for audit {$this->audit->id}", [
+            Log::channel('audit')->info("✓ AUDIT COMPLETED SUCCESSFULLY", [
+                'audit_id' => $this->audit->id,
                 'final_score' => $overallScore,
+                'duration' => $this->audit->started_at?->diffForHumans(now(), true),
             ]);
+            Log::channel('audit')->info("========================================");
 
         } catch (Exception $e) {
-            Log::error("Failed to aggregate results for audit {$this->audit->id}", [
+            Log::channel('audit')->error("✗ AGGREGATION FAILED", [
                 'audit_id' => $this->audit->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -287,10 +302,10 @@ class AggregateResultsJob implements ShouldQueue
     /**
      * Handle a job failure.
      *
-     * @param Exception $exception
+     * @param \Throwable $exception
      * @return void
      */
-    public function failed(Exception $exception): void
+    public function failed(\Throwable $exception): void
     {
         Log::error("AggregateResultsJob permanently failed for audit {$this->audit->id}", [
             'audit_id' => $this->audit->id,

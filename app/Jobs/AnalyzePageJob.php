@@ -65,17 +65,19 @@ class AnalyzePageJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            Log::info("Analyzing page {$this->page->id}", [
+            Log::channel('audit')->info("→ Analyzing page: {$this->page->url}", [
                 'page_id' => $this->page->id,
-                'url' => $this->page->url,
+                'audit_id' => $this->page->audit_id,
             ]);
 
             // TODO: Fetch page HTML content
             // - Use HTTP client or Browsershot to get page content
             // - Handle redirects, timeouts, and errors appropriately
+            Log::channel('audit')->info("  Fetching page HTML...");
             $html = $this->fetchPageHtml();
 
             // Extract metadata from HTML
+            Log::channel('audit')->info("  Extracting metadata...");
             $metadata = $this->extractMetadata($html);
 
             // TODO: Capture screenshot using Browsershot
@@ -83,6 +85,7 @@ class AnalyzePageJob implements ShouldQueue
             // - Set quality to 80%
             // - Store in storage/app/screenshots
             // - Return relative path for database storage
+            Log::channel('audit')->info("  Capturing screenshot...");
             $screenshotPath = $this->captureScreenshot();
 
             // Store HTML excerpt (first 2000 chars)
@@ -98,16 +101,19 @@ class AnalyzePageJob implements ShouldQueue
             ]);
 
             // Check SEO elements and create issues
-            $this->checkSeoElements($metadata);
+            Log::channel('audit')->info("  Checking SEO elements...");
+            $issuesFound = $this->checkSeoElements($metadata);
 
-            Log::info("Successfully analyzed page {$this->page->id}");
+            Log::channel('audit')->info("✓ Page analysis complete", [
+                'page_id' => $this->page->id,
+                'title' => $metadata['title'],
+                'issues_found' => $issuesFound,
+            ]);
 
         } catch (Exception $e) {
-            Log::error("Failed to analyze page {$this->page->id}", [
+            Log::channel('audit')->error("✗ Page analysis failed: {$this->page->url}", [
                 'page_id' => $this->page->id,
-                'url' => $this->page->url,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
             throw $e;
@@ -192,10 +198,11 @@ class AnalyzePageJob implements ShouldQueue
      * Check SEO elements and create issues for problems.
      *
      * @param array $metadata
-     * @return void
+     * @return int Number of issues found
      */
-    protected function checkSeoElements(array $metadata): void
+    protected function checkSeoElements(array $metadata): int
     {
+        $issuesFound = 0;
         // Check for missing title
         if (empty($metadata['title'])) {
             Issue::create([
@@ -208,6 +215,7 @@ class AnalyzePageJob implements ShouldQueue
                 'recommendation' => 'Add a descriptive title tag (50-60 characters) that includes target keywords.',
                 'affected_element' => '<title>',
             ]);
+            $issuesFound++;
         } elseif (mb_strlen($metadata['title']) < 30) {
             Issue::create([
                 'audit_id' => $this->page->audit_id,
@@ -219,6 +227,7 @@ class AnalyzePageJob implements ShouldQueue
                 'recommendation' => 'Expand the title to 50-60 characters for better SEO.',
                 'affected_element' => '<title>',
             ]);
+            $issuesFound++;
         } elseif (mb_strlen($metadata['title']) > 60) {
             Issue::create([
                 'audit_id' => $this->page->audit_id,
@@ -230,6 +239,7 @@ class AnalyzePageJob implements ShouldQueue
                 'recommendation' => 'Shorten the title to 50-60 characters.',
                 'affected_element' => '<title>',
             ]);
+            $issuesFound++;
         }
 
         // Check for missing meta description
@@ -244,6 +254,7 @@ class AnalyzePageJob implements ShouldQueue
                 'recommendation' => 'Add a compelling meta description (150-160 characters) that encourages clicks.',
                 'affected_element' => '<meta name="description">',
             ]);
+            $issuesFound++;
         } elseif (mb_strlen($metadata['meta_description']) > 160) {
             Issue::create([
                 'audit_id' => $this->page->audit_id,
@@ -255,6 +266,7 @@ class AnalyzePageJob implements ShouldQueue
                 'recommendation' => 'Shorten the meta description to 150-160 characters.',
                 'affected_element' => '<meta name="description">',
             ]);
+            $issuesFound++;
         }
 
         // Check for missing H1
@@ -269,16 +281,19 @@ class AnalyzePageJob implements ShouldQueue
                 'recommendation' => 'Add a single, descriptive H1 heading that clearly indicates the page content.',
                 'affected_element' => '<h1>',
             ]);
+            $issuesFound++;
         }
+
+        return $issuesFound;
     }
 
     /**
      * Handle a job failure.
      *
-     * @param Exception $exception
+     * @param \Throwable $exception
      * @return void
      */
-    public function failed(Exception $exception): void
+    public function failed(\Throwable $exception): void
     {
         Log::error("AnalyzePageJob permanently failed for page {$this->page->id}", [
             'page_id' => $this->page->id,
