@@ -298,10 +298,13 @@ php artisan migrate --force
 1. **Access Cloudways Panel:**
    - Log into your Cloudways account
    - Navigate to your server
+   - Settings & Packages > Packages
+   - Ensure Supervisor is installed
    - Go to your application
+   - Application Settings 
 
 2. **Set up Supervisor:**
-   - Look for "Supervisor" tab or "Background Processes"
+   - Look for "Supervisor Jobs" tab 
    - Click "Add Supervisor"
    - Configure the supervisor job:
 
