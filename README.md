@@ -291,15 +291,13 @@ APP_URL=https://your-domain.com
 php artisan migrate --force
 ```
 
-#### 5. Configure Supervisor for Queue Workers
+#### 5. Configure Queue Workers
 
-Create Supervisor configuration for Horizon:
+**Important:** Cloudways doesn't provide sudo access. Choose one of these options:
 
-```bash
-sudo nano /etc/supervisor/conf.d/laravel-horizon.conf
-```
+**Option A: Contact Cloudways Support (Recommended)**
 
-Add this configuration (adjust paths for your application):
+Request Cloudways support to set up Supervisor with this configuration:
 
 ```ini
 [program:laravel-horizon]
@@ -313,18 +311,33 @@ stdout_logfile=/home/master/applications/your-app/public_html/storage/logs/horiz
 stopwaitsecs=3600
 ```
 
-Update and start Supervisor:
+**Option B: Use Cloudways Application Panel**
 
-```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl start laravel-horizon
+Check if your Cloudways panel has "Supervisor" or "Background Processes" settings and add:
+```
+php artisan horizon
 ```
 
-Verify Horizon is running:
+**Option C: Use Cron Job (Workaround)**
+
+Add to crontab (`crontab -e`):
 
 ```bash
-sudo supervisorctl status laravel-horizon
+# Keep Horizon running (restarts if stopped)
+* * * * * cd /home/master/applications/your-app/public_html && php artisan horizon >> /dev/null 2>&1 &
+
+# Alternative: Simple queue worker
+# * * * * * cd /home/master/applications/your-app/public_html && php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600 >> /dev/null 2>&1 &
+```
+
+**Verify Horizon is running:**
+
+```bash
+# Check if process is running
+ps aux | grep horizon
+
+# Or check logs
+tail -f storage/logs/horizon.log
 ```
 
 Access Horizon dashboard at: `https://your-domain.com/horizon`
