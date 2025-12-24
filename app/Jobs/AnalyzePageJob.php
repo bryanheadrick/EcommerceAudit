@@ -4,12 +4,14 @@ namespace App\Jobs;
 
 use App\Models\Issue;
 use App\Models\Page;
+use App\Services\PuppeteerService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Exception;
 
 /**
@@ -121,22 +123,21 @@ class AnalyzePageJob implements ShouldQueue
     }
 
     /**
-     * Fetch the HTML content of the page.
-     *
-     * TODO: Replace with actual HTTP client or Browsershot implementation
+     * Fetch the HTML content of the page using Puppeteer.
      *
      * @return string
      */
     protected function fetchPageHtml(): string
     {
-        // TODO: Implement actual page fetching logic
-        // - Use Guzzle or Laravel HTTP client
-        // - Set appropriate user agent
-        // - Handle timeouts (30 seconds)
-        // - Follow redirects (max 3)
-        // - Return full HTML content
+        $puppeteerService = app(PuppeteerService::class);
 
-        return '<html><head><title>Sample Page</title><meta name="description" content="Sample description"></head><body><h1>Sample H1</h1></body></html>';
+        $html = $puppeteerService->getPageHtml($this->page->url);
+
+        if (! $html) {
+            return '';
+        }
+
+        return $html;
     }
 
     /**
@@ -176,22 +177,29 @@ class AnalyzePageJob implements ShouldQueue
     }
 
     /**
-     * Capture a screenshot of the page.
-     *
-     * TODO: Replace with actual Browsershot implementation
+     * Capture a screenshot of the page using Browsershot.
      *
      * @return string|null Screenshot path relative to storage
      */
     protected function captureScreenshot(): ?string
     {
-        // TODO: Implement Browsershot screenshot capture
-        // - Use Browsershot::url($this->page->url)
-        // - Set window size to 1920x1080
-        // - Set quality to 80
-        // - Save to storage/app/screenshots/{audit_id}/{page_id}.png
-        // - Return path relative to storage/app
+        $puppeteerService = app(PuppeteerService::class);
 
-        return "screenshots/{$this->page->audit_id}/{$this->page->id}.png";
+        $relativePath = "screenshots/{$this->page->audit_id}/{$this->page->id}.png";
+        $fullPath = Storage::path($relativePath);
+
+        $directory = dirname($fullPath);
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $success = $puppeteerService->takeScreenshot($this->page->url, $fullPath);
+
+        if (! $success) {
+            return null;
+        }
+
+        return $relativePath;
     }
 
     /**

@@ -5,12 +5,14 @@ namespace App\Jobs;
 use App\Models\Audit;
 use App\Models\CheckoutStep;
 use App\Models\Issue;
+use App\Services\PuppeteerService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Exception;
 
 /**
@@ -100,86 +102,73 @@ class TestCheckoutFlowJob implements ShouldQueue
     }
 
     /**
-     * Run the checkout flow automation.
-     *
-     * TODO: Replace with actual Puppeteer/Browsershot implementation
+     * Run the checkout flow automation using PuppeteerService.
      *
      * @return array
      */
     protected function runCheckoutFlow(): array
     {
-        // TODO: Implement Puppeteer automation
-        // - Use Browsershot or direct Puppeteer integration
-        // - Set viewport to mobile or desktop based on config
-        // - Navigate to product page URL
-        // - Wait for page load
-        // - Find and click "Add to Cart" button
-        // - Navigate to cart
-        // - Click "Proceed to Checkout"
-        // - Navigate through each checkout step
-        // - Capture screenshots at each step
-        // - Count form fields
-        // - Detect errors or validation messages
-        // - Return array of step data
+        $puppeteerService = app(PuppeteerService::class);
 
         $steps = [];
 
-        // Step 1: Product Page
-        $steps[] = $this->createCheckoutStep(
-            stepNumber: 1,
-            stepName: 'Product Page',
-            url: $this->audit->url,
-            screenshotPath: "checkout/{$this->audit->id}/step-1-product.png",
-            formFieldsCount: 0,
-            successful: true,
-            errors: []
-        );
+        // Common checkout URLs to test
+        $checkoutPaths = [
+            ['name' => 'Homepage', 'path' => ''],
+            ['name' => 'Cart Page', 'path' => '/cart'],
+            ['name' => 'Checkout', 'path' => '/checkout'],
+        ];
 
-        // Step 2: Add to Cart
-        $steps[] = $this->createCheckoutStep(
-            stepNumber: 2,
-            stepName: 'Add to Cart',
-            url: $this->audit->url,
-            screenshotPath: "checkout/{$this->audit->id}/step-2-cart.png",
-            formFieldsCount: 0,
-            successful: true,
-            errors: []
-        );
+        foreach ($checkoutPaths as $index => $pathInfo) {
+            $stepNumber = $index + 1;
+            $url = rtrim($this->audit->url, '/') . $pathInfo['path'];
+            $screenshotPath = "checkout/{$this->audit->id}/step-{$stepNumber}-" . str_replace(' ', '-', strtolower($pathInfo['name'])) . ".png";
+            $fullPath = Storage::path($screenshotPath);
 
-        // Step 3: Cart Page
-        $steps[] = $this->createCheckoutStep(
-            stepNumber: 3,
-            stepName: 'Cart',
-            url: $this->audit->url . '/cart',
-            screenshotPath: "checkout/{$this->audit->id}/step-3-cart-page.png",
-            formFieldsCount: 1,
-            successful: true,
-            errors: []
-        );
+            $directory = dirname($fullPath);
+            if (! is_dir($directory)) {
+                mkdir($directory, 0755, true);
+            }
 
-        // Step 4: Checkout - Shipping Info
-        $steps[] = $this->createCheckoutStep(
-            stepNumber: 4,
-            stepName: 'Shipping Information',
-            url: $this->audit->url . '/checkout',
-            screenshotPath: "checkout/{$this->audit->id}/step-4-shipping.png",
-            formFieldsCount: 8,
-            successful: true,
-            errors: []
-        );
+            $successful = $puppeteerService->takeScreenshot($url, $fullPath);
 
-        // Step 5: Checkout - Payment
-        $steps[] = $this->createCheckoutStep(
-            stepNumber: 5,
-            stepName: 'Payment Information',
-            url: $this->audit->url . '/checkout/payment',
-            screenshotPath: "checkout/{$this->audit->id}/step-5-payment.png",
-            formFieldsCount: 4,
-            successful: true,
-            errors: []
-        );
+            $formFieldsCount = 0;
+            if ($successful) {
+                $formFieldsCount = $this->countFormFields($url, $puppeteerService);
+            }
+
+            $steps[] = $this->createCheckoutStep(
+                stepNumber: $stepNumber,
+                stepName: $pathInfo['name'],
+                url: $url,
+                screenshotPath: $successful ? $screenshotPath : null,
+                formFieldsCount: $formFieldsCount,
+                successful: $successful,
+                errors: $successful ? [] : ['Failed to load page']
+            );
+        }
 
         return $steps;
+    }
+
+    /**
+     * Count form fields on a page using Puppeteer.
+     *
+     * @param string $url
+     * @param PuppeteerService $puppeteerService
+     * @return int
+     */
+    protected function countFormFields(string $url, PuppeteerService $puppeteerService): int
+    {
+        try {
+            $script = "document.querySelectorAll('input, select, textarea').length";
+
+            $count = $puppeteerService->evaluateJavaScript($url, $script);
+
+            return (int) ($count ?? 0);
+        } catch (\Exception $e) {
+            return 0;
+        }
     }
 
     /**

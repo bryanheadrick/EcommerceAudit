@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Audit;
 use App\Models\Page;
+use App\Services\CrawlerService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -156,25 +157,20 @@ class CrawlSiteJob implements ShouldQueue
     }
 
     /**
-     * Discover pages from the target website.
-     *
-     * TODO: Replace this placeholder with actual Spatie Crawler implementation
+     * Discover pages from the target website using Spatie Crawler.
      *
      * @return \Illuminate\Support\Collection<Page>
      */
     protected function discoverPages()
     {
-        // TODO: Implement actual crawler logic using Spatie Crawler
-        // For now, create a placeholder page record for the homepage
+        $crawlerService = app(CrawlerService::class);
 
-        $page = Page::create([
-            'audit_id' => $this->audit->id,
-            'url' => $this->audit->url,
-            'status_code' => 200,
-            'crawled_at' => now(),
-        ]);
+        $crawlerService
+            ->setMaxPages($this->audit->max_pages)
+            ->setConcurrency(config('audit.crawler_concurrency', 5))
+            ->setDelayBetweenRequests(config('audit.crawler_delay', 100));
 
-        return collect([$page]);
+        return $crawlerService->crawl($this->audit);
     }
 
     /**
