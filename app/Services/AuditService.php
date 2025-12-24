@@ -45,7 +45,7 @@ class AuditService
 
     public function startAudit(Audit $audit): void
     {
-        if ($audit->isProcessing()) {
+        if (in_array($audit->status, ['crawling', 'analyzing'])) {
             throw new \RuntimeException("Audit {$audit->id} is already processing");
         }
 
@@ -67,7 +67,7 @@ class AuditService
         }
 
         $audit->update([
-            'status' => 'cancelled',
+            'status' => 'failed',
             'completed_at' => now(),
         ]);
 
