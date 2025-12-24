@@ -26,7 +26,7 @@ class ResultsController extends Controller
                         ->orWhere('description', 'like', "%{$search}%");
                 });
             })
-            ->orderByRaw("FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')")
+            ->orderByRaw("CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 WHEN 'info' THEN 5 END")
             ->orderBy('created_at', 'desc')
             ->paginate(50);
 
@@ -119,7 +119,7 @@ class ResultsController extends Controller
 
         $checkoutIssues = $audit->issues()
             ->where('category', 'checkout')
-            ->orderByRaw("FIELD(severity, 'critical', 'high', 'medium', 'low', 'info')")
+            ->orderByRaw("CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 WHEN 'info' THEN 5 END")
             ->get();
 
         return view('results.checkout', [
