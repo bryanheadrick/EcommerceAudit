@@ -195,42 +195,212 @@ docker-compose exec app tail -f storage/logs/audit.log
 
 ### Cloudways Deployment
 
-1. **Initial Setup**
-   ```bash
-   # SSH into your Cloudways server
-   cd /path/to/application
+**Prerequisites:**
+- Cloudways server with at least 2GB RAM (4GB+ recommended for Chromium)
+- Node.js 18+ already installed (check with `node --version`)
+- At least 500MB free disk space for Puppeteer/Chromium
+- SSH access to your Cloudways server
 
-   # Install Composer dependencies
-   composer install --optimize-autoloader --no-dev
+**Note:** Cloudways managed hosting does not provide sudo/root access for apt packages, so we'll use Puppeteer's bundled Chromium instead of installing Chromium via apt. Global npm packages can be installed normally.
 
-   # Install NPM dependencies and build assets
-   npm install
-   npm run build
+#### 1. Initial Setup
 
-   # Set up environment
-   cp .env.example .env
-   php artisan key:generate
+```bash
+# SSH into your Cloudways server
+ssh master@your-server-ip
+cd /home/master/applications/your-app/public_html
 
-   # Run migrations
-   php artisan migrate --force
-   ```
+# Install Composer dependencies
+composer install --optimize-autoloader --no-dev
 
-2. **Configure Queue Workers**
-   - Set up Supervisor to run `php artisan queue:work redis --tries=3 --timeout=300`
-   - Configure Laravel Horizon (optional, better queue monitoring)
+# Install NPM dependencies (includes Puppeteer with bundled Chromium)
+npm install
 
-3. **Configure Scheduler**
-   - Add to crontab: `* * * * * cd /path/to/app && php artisan schedule:run >> /dev/null 2>&1`
+# Build frontend assets
+npm run build
 
-4. **Install System Dependencies**
-   - Node.js 18+ (for Puppeteer/Lighthouse)
-   - Chromium browser
-   - Install via: `npm install -g puppeteer lighthouse`
+# Set up environment
+cp .env.example .env
+php artisan key:generate
 
-5. **Environment Variables**
-   - Configure `.env` with production database credentials
-   - Set `PUPPETEER_EXECUTABLE_PATH` to Chromium location
-   - Set `LIGHTHOUSE_PATH=/usr/local/bin/lighthouse`
+# Configure your .env file
+nano .env
+# Set database credentials, Redis, and other production settings
+```
+
+#### 2. Install Audit Dependencies (Puppeteer & Lighthouse)
+
+```bash
+# Install Puppeteer and Lighthouse globally
+# This will download Chromium (~300MB) - may take a few minutes
+npm install -g puppeteer lighthouse
+
+# Verify installation
+lighthouse --version
+npm list -g puppeteer
+
+# Check Puppeteer's Chromium location
+ls -la ~/.cache/puppeteer/chrome/
+
+# Test Lighthouse works
+lighthouse https://example.com \
+  --output=json \
+  --output-path=./test-report.json \
+  --quiet \
+  --chrome-flags="--headless --no-sandbox --disable-gpu"
+```
+
+#### 3. Configure Environment Variables
+
+Add these to your `.env` file:
+
+```bash
+# Database
+DB_CONNECTION=pgsql
+DB_HOST=your-cloudways-db-host
+DB_PORT=5432
+DB_DATABASE=your_database
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+
+# Redis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+# Queue
+QUEUE_CONNECTION=redis
+
+# Audit Tool Configuration
+LIGHTHOUSE_PATH=/usr/local/bin/lighthouse
+# Do NOT set PUPPETEER_EXECUTABLE_PATH - uses bundled Chromium
+# Do NOT set PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+
+# App
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://your-domain.com
+```
+
+#### 4. Run Database Migrations
+
+```bash
+php artisan migrate --force
+```
+
+#### 5. Configure Supervisor for Queue Workers
+
+Create Supervisor configuration for Horizon:
+
+```bash
+sudo nano /etc/supervisor/conf.d/laravel-horizon.conf
+```
+
+Add this configuration (adjust paths for your application):
+
+```ini
+[program:laravel-horizon]
+process_name=%(program_name)s
+command=php /home/master/applications/your-app/public_html/artisan horizon
+autostart=true
+autorestart=true
+user=master
+redirect_stderr=true
+stdout_logfile=/home/master/applications/your-app/public_html/storage/logs/horizon.log
+stopwaitsecs=3600
+```
+
+Update and start Supervisor:
+
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start laravel-horizon
+```
+
+Verify Horizon is running:
+
+```bash
+sudo supervisorctl status laravel-horizon
+```
+
+Access Horizon dashboard at: `https://your-domain.com/horizon`
+
+#### 6. Configure Cron Job for Scheduler
+
+```bash
+crontab -e
+```
+
+Add this line (adjust path for your application):
+
+```bash
+* * * * * cd /home/master/applications/your-app/public_html && php artisan schedule:run >> /dev/null 2>&1
+```
+
+#### 7. Set Permissions
+
+```bash
+# Ensure storage and cache directories are writable
+chmod -R 775 storage bootstrap/cache
+chown -R master:www-data storage bootstrap/cache
+```
+
+#### 8. Optimize for Production
+
+```bash
+# Cache configuration
+php artisan config:cache
+
+# Cache routes
+php artisan route:cache
+
+# Cache views
+php artisan view:cache
+```
+
+#### 9. Test the Audit System
+
+```bash
+# Monitor audit logs in real-time
+tail -f storage/logs/audit.log
+
+# In another terminal, trigger a test audit via Tinker
+php artisan tinker
+```
+
+In Tinker:
+```php
+$audit = \App\Models\Audit::create([
+    'user_id' => 1, // Use your user ID
+    'url' => 'https://example.com',
+    'status' => 'pending',
+    'max_pages' => 5
+]);
+
+dispatch(new \App\Jobs\CrawlSiteJob($audit));
+```
+
+Watch the logs to ensure jobs are processing correctly.
+
+#### Troubleshooting
+
+**Chromium crashes or times out:**
+- Increase server memory (need at least 2GB, 4GB+ recommended)
+- Check Chrome flags in PuppeteerService include `--no-sandbox --disable-dev-shm-usage`
+
+**"Lighthouse command not found":**
+- Verify path in .env: `LIGHTHOUSE_PATH=/usr/local/bin/lighthouse`
+- Check installation: `which lighthouse` or `npm list -g lighthouse`
+
+**Queue jobs not processing:**
+- Check Horizon status: `sudo supervisorctl status laravel-horizon`
+- View Horizon logs: `tail -f storage/logs/horizon.log`
+- Restart Horizon: `sudo supervisorctl restart laravel-horizon`
+
+**Permission errors:**
+- Ensure storage is writable: `chmod -R 775 storage`
+- Check file ownership: `chown -R master:www-data storage`
 
 ## ✨ Key Features
 
