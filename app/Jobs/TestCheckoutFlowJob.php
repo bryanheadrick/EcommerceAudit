@@ -68,7 +68,7 @@ class TestCheckoutFlowJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            Log::info("Testing checkout flow for audit {$this->audit->id}", [
+            Log::channel('audit')->info("→ Testing checkout flow", [
                 'audit_id' => $this->audit->id,
                 'url' => $this->audit->url,
             ]);
@@ -85,15 +85,14 @@ class TestCheckoutFlowJob implements ShouldQueue
             // Analyze checkout flow for issues
             $this->analyzeCheckoutFlow($checkoutSteps);
 
-            Log::info("Successfully tested checkout flow for audit {$this->audit->id}", [
+            Log::channel('audit')->info("✓ Checkout flow test complete", [
                 'steps_completed' => count($checkoutSteps),
             ]);
 
         } catch (Exception $e) {
-            Log::error("Failed to test checkout flow for audit {$this->audit->id}", [
+            Log::channel('audit')->error("✗ Checkout flow test failed", [
                 'audit_id' => $this->audit->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
             throw $e;
@@ -227,7 +226,7 @@ class TestCheckoutFlowJob implements ShouldQueue
     {
         $totalSteps = count($checkoutSteps);
         $failedSteps = array_filter($checkoutSteps, fn($step) => !$step->successful);
-        $totalFormFields = array_sum(array_column($checkoutSteps->toArray(), 'form_fields_count'));
+        $totalFormFields = array_sum(array_column($checkoutSteps, 'form_fields_count'));
 
         // Check if checkout flow failed
         if (!empty($failedSteps)) {
@@ -358,10 +357,10 @@ class TestCheckoutFlowJob implements ShouldQueue
     /**
      * Handle a job failure.
      *
-     * @param Exception $exception
+     * @param \Throwable $exception
      * @return void
      */
-    public function failed(Exception $exception): void
+    public function failed(\Throwable $exception): void
     {
         Log::error("TestCheckoutFlowJob permanently failed for audit {$this->audit->id}", [
             'audit_id' => $this->audit->id,

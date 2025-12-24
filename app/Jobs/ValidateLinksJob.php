@@ -349,10 +349,10 @@ class ValidateLinksJob implements ShouldQueue
     /**
      * Handle a job failure.
      *
-     * @param Exception $exception
+     * @param \Throwable $exception
      * @return void
      */
-    public function failed(Exception $exception): void
+    public function failed(\Throwable $exception): void
     {
         Log::error("ValidateLinksJob permanently failed for page {$this->page->id}", [
             'page_id' => $this->page->id,

@@ -33,11 +33,14 @@ class AuditService
             'created_by' => $user->id,
         ]);
 
-        Log::info("Created audit {$audit->id}", [
+        Log::channel('audit')->info("========================================");
+        Log::channel('audit')->info("NEW AUDIT CREATED", [
             'audit_id' => $audit->id,
             'url' => $url,
             'domain' => $domain,
+            'max_pages' => $audit->max_pages,
             'created_by' => $user->id,
+            'created_by_email' => $user->email,
         ]);
 
         return $audit;
@@ -53,11 +56,15 @@ class AuditService
             throw new \RuntimeException("Audit {$audit->id} has already been completed");
         }
 
-        Log::info("Starting audit {$audit->id}");
+        Log::channel('audit')->info("STARTING AUDIT", [
+            'audit_id' => $audit->id,
+            'url' => $audit->url,
+            'status' => $audit->status,
+        ]);
 
         CrawlSiteJob::dispatch($audit)->onQueue('default');
 
-        Log::info("Dispatched CrawlSiteJob for audit {$audit->id}");
+        Log::channel('audit')->info("Dispatched CrawlSiteJob to queue");
     }
 
     public function cancelAudit(Audit $audit): void
