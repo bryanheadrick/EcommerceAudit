@@ -303,23 +303,18 @@ php artisan migrate --force
    - Go to your application
    - Application Settings 
 
-2. **Set up Supervisor:**
-   - Look for "Supervisor Jobs" tab 
-   - Click "Add Supervisor"
-   - Configure the supervisor job:
+2. **Launch Laravel Queue Worker:**
+   - Click **"Launch Laravel Queue Worker"** button
+   - Configure the Laravel queue settings:
 
-   **Command:**
-   ```
-   php artisan horizon
-   ```
-
-   **Working Directory:**
-   ```
-   /home/master/applications/your-app/public_html
-   ```
-
-   **Auto Start:** Yes
-   **Auto Restart:** Yes
+   - **Connection Driver:** `redis`
+   - **Number of Processes:** `1` (increase for high load)
+   - **Timeout:** `300` (seconds - 5 minutes)
+   - **Sleep Time:** `3` (seconds between job checks)
+   - **Queue:** Leave blank (processes all) or enter `default`
+   - **Maximum Tries:** `3` (retry attempts before failing)
+   - **Environment:** `production` (optional)
+   - **Artisan Path:** Enter `horizon` (to use Horizon instead of default queue:work)
 
 3. **Save and Start** the supervisor job
 
@@ -334,6 +329,15 @@ php artisan migrate --force
    ```
 
 5. **Access Horizon dashboard** at: `https://your-domain.com/horizon`
+
+---
+
+**Note:** If Horizon doesn't work via the Artisan Path field, use the **standard queue worker** instead:
+- Leave **Artisan Path** as default (uses `queue:work`)
+- Keep all other settings the same
+- You won't have the Horizon dashboard, but queues will process normally
+
+---
 
 **Alternative: Use Cron Job (Not Recommended)**
 
