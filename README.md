@@ -291,56 +291,60 @@ APP_URL=https://your-domain.com
 php artisan migrate --force
 ```
 
-#### 5. Configure Queue Workers
+#### 5. Configure Supervisor for Queue Workers (via Cloudways Panel)
 
-**Important:** Cloudways doesn't provide sudo access. Choose one of these options:
+**Recommended:** Use Cloudways Management Panel to set up Supervisor:
 
-**Option A: Contact Cloudways Support (Recommended)**
+1. **Access Cloudways Panel:**
+   - Log into your Cloudways account
+   - Navigate to your server
+   - Go to your application
 
-Request Cloudways support to set up Supervisor with this configuration:
+2. **Set up Supervisor:**
+   - Look for "Supervisor" tab or "Background Processes"
+   - Click "Add Supervisor"
+   - Configure the supervisor job:
 
-```ini
-[program:laravel-horizon]
-process_name=%(program_name)s
-command=php /home/master/applications/your-app/public_html/artisan horizon
-autostart=true
-autorestart=true
-user=master
-redirect_stderr=true
-stdout_logfile=/home/master/applications/your-app/public_html/storage/logs/horizon.log
-stopwaitsecs=3600
-```
+   **Command:**
+   ```
+   php artisan horizon
+   ```
 
-**Option B: Use Cloudways Application Panel**
+   **Working Directory:**
+   ```
+   /home/master/applications/your-app/public_html
+   ```
 
-Check if your Cloudways panel has "Supervisor" or "Background Processes" settings and add:
-```
-php artisan horizon
-```
+   **Auto Start:** Yes
+   **Auto Restart:** Yes
 
-**Option C: Use Cron Job (Workaround)**
+3. **Save and Start** the supervisor job
 
-Add to crontab (`crontab -e`):
+4. **Verify Horizon is running:**
+
+   ```bash
+   # SSH into your server and check
+   ps aux | grep horizon
+
+   # Check Horizon logs
+   tail -f storage/logs/horizon.log
+   ```
+
+5. **Access Horizon dashboard** at: `https://your-domain.com/horizon`
+
+**Alternative: Use Cron Job (Not Recommended)**
+
+If supervisor isn't available, use cron as a fallback:
 
 ```bash
-# Keep Horizon running (restarts if stopped)
+crontab -e
+```
+
+Add:
+```bash
+# Fallback: Keep Horizon running via cron
 * * * * * cd /home/master/applications/your-app/public_html && php artisan horizon >> /dev/null 2>&1 &
-
-# Alternative: Simple queue worker
-# * * * * * cd /home/master/applications/your-app/public_html && php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600 >> /dev/null 2>&1 &
 ```
-
-**Verify Horizon is running:**
-
-```bash
-# Check if process is running
-ps aux | grep horizon
-
-# Or check logs
-tail -f storage/logs/horizon.log
-```
-
-Access Horizon dashboard at: `https://your-domain.com/horizon`
 
 #### 6. Configure Cron Job for Scheduler
 
