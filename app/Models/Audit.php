@@ -22,6 +22,11 @@ class Audit extends Model
         'started_at',
         'completed_at',
         'created_by',
+        'jobs_total',
+        'jobs_completed',
+        'jobs_failed',
+        'current_step',
+        'error_message',
     ];
 
     protected $casts = [
@@ -31,6 +36,9 @@ class Audit extends Model
         'score' => 'integer',
         'pages_crawled' => 'integer',
         'max_pages' => 'integer',
+        'jobs_total' => 'integer',
+        'jobs_completed' => 'integer',
+        'jobs_failed' => 'integer',
     ];
 
     public function createdBy(): BelongsTo
@@ -86,5 +94,38 @@ class Audit extends Model
     public function isProcessing(): bool
     {
         return in_array($this->status, ['pending', 'crawling', 'analyzing']);
+    }
+
+    public function getProgressPercentage(): int
+    {
+        if ($this->jobs_total === 0) {
+            return 0;
+        }
+
+        return (int) round(($this->jobs_completed / $this->jobs_total) * 100);
+    }
+
+    public function hasFailedJobs(): bool
+    {
+        return $this->jobs_failed > 0;
+    }
+
+    public function updateJobProgress(string $step, bool $increment = true): void
+    {
+        $data = ['current_step' => $step];
+
+        if ($increment) {
+            $data['jobs_completed'] = $this->jobs_completed + 1;
+        }
+
+        $this->update($data);
+    }
+
+    public function markJobFailed(string $errorMessage): void
+    {
+        $this->update([
+            'jobs_failed' => $this->jobs_failed + 1,
+            'error_message' => $errorMessage,
+        ]);
     }
 }

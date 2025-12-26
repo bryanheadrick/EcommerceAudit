@@ -79,6 +79,9 @@ class CrawlSiteJob implements ShouldQueue
             $this->audit->update([
                 'status' => 'crawling',
                 'started_at' => now(),
+                'current_step' => 'Starting website crawl',
+                'jobs_completed' => 0,
+                'jobs_failed' => 0,
             ]);
             Log::channel('audit')->info("Updated audit status to 'crawling'");
 
@@ -90,6 +93,7 @@ class CrawlSiteJob implements ShouldQueue
 
             // Placeholder: Simulate discovered pages
             Log::channel('audit')->info("Starting page discovery...");
+            $this->audit->updateJobProgress('Discovering pages', false);
             $discoveredPages = $this->discoverPages();
 
             Log::channel('audit')->info("DISCOVERED {$discoveredPages->count()} PAGES", [
@@ -100,6 +104,16 @@ class CrawlSiteJob implements ShouldQueue
             // Update pages crawled count
             $this->audit->update([
                 'pages_crawled' => $discoveredPages->count(),
+            ]);
+
+            // Calculate total jobs that will be dispatched
+            // Each page gets: 1 analyze + 2 performance + 1 validate = 4 jobs
+            // Plus: 1 checkout + 1 aggregate = 2 additional jobs
+            $totalJobsToDispatch = ($discoveredPages->count() * 4) + 2;
+
+            $this->audit->update([
+                'jobs_total' => $totalJobsToDispatch,
+                'current_step' => 'Dispatching analysis jobs',
             ]);
 
             // Dispatch analysis jobs for each discovered page
@@ -150,6 +164,7 @@ class CrawlSiteJob implements ShouldQueue
             $this->audit->update([
                 'status' => 'failed',
                 'completed_at' => now(),
+                'error_message' => $e->getMessage(),
             ]);
 
             throw $e;
@@ -190,6 +205,7 @@ class CrawlSiteJob implements ShouldQueue
         $this->audit->update([
             'status' => 'failed',
             'completed_at' => now(),
+            'error_message' => $exception->getMessage(),
         ]);
     }
 }

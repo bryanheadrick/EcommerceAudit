@@ -16,7 +16,8 @@ An internal web application for conducting comprehensive conversion optimization
 - **PHP 8.2+** - Runtime environment
 - **PostgreSQL 15+** - Primary data store
 - **Redis 7+** - Queue backend and caching layer
-- **Laravel Horizon** - Queue monitoring and management
+- **Built-in Queue Monitor** - Real-time job progress tracking and queue health monitoring
+- **Laravel Horizon** - Advanced queue monitoring (optional, not required)
 - **Laravel Telescope** - Debugging and insight tool (dev only)
 
 ### Frontend
@@ -181,13 +182,29 @@ docker-compose exec app npm run dev
 
 **Start queue processing:**
 ```bash
-# Using Horizon (recommended)
-docker-compose exec app php artisan horizon
+# Option 1: Using standard Laravel queue worker
+docker-compose exec app php artisan queue:work
 
+# Option 2: Using Horizon (optional, for advanced monitoring)
+docker-compose exec app php artisan horizon
 # Access Horizon dashboard at http://localhost:8000/horizon
 ```
 
 **Monitor audit progress:**
+
+The application includes a **built-in queue monitoring system** that displays:
+- Real-time job progress with percentage completion
+- Current processing step for each audit
+- Visual progress bars on audit detail pages
+- Queue health indicators (worker status, pending jobs, failed jobs)
+- Recent job failures with error messages
+- Auto-refresh on audit pages (every 5 seconds during processing)
+
+Access monitoring through:
+- **Audit List Page**: Shows queue health status and processing audits
+- **Audit Detail Page**: Shows detailed progress with real-time updates
+
+You can also watch logs:
 ```bash
 # Watch the dedicated audit log in real-time
 docker-compose exec app tail -f storage/logs/audit.log
@@ -272,7 +289,10 @@ REDIS_PORT=6379
 QUEUE_CONNECTION=redis
 
 # Audit Tool Configuration
-LIGHTHOUSE_PATH=/usr/local/bin/lighthouse
+# Find your lighthouse path with: npm prefix -g
+# Then use: {npm-prefix}/bin/lighthouse
+LIGHTHOUSE_PATH=/usr/bin/lighthouse
+# Or dynamically: LIGHTHOUSE_PATH=$(npm prefix -g)/bin/lighthouse
 # Do NOT set PUPPETEER_EXECUTABLE_PATH - uses bundled Chromium
 # Do NOT set PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
 
@@ -288,43 +308,67 @@ APP_URL=https://your-domain.com
 php artisan migrate --force
 ```
 
-#### 5. Configure Supervisor for Queue Workers
+#### 5. Configure Supervisor for Queue Workers (via Cloudways Panel)
 
-Create Supervisor configuration for Horizon:
+**Recommended:** Use Cloudways Management Panel to set up Supervisor:
+
+1. **Access Cloudways Panel:**
+   - Log into your Cloudways account
+   - Navigate to your server
+   - Settings & Packages > Packages
+   - Ensure Supervisor is installed
+   - Go to your application
+   - Application Settings 
+
+2. **Launch Laravel Queue Worker:**
+   - Click **"Launch Laravel Queue Worker"** button
+   - Configure the Laravel queue settings:
+
+   - **Connection Driver:** `redis`
+   - **Number of Processes:** `1` (increase for high load)
+   - **Timeout:** `300` (seconds - 5 minutes)
+   - **Sleep Time:** `3` (seconds between job checks)
+   - **Queue:** Leave blank (processes all) or enter `default`
+   - **Maximum Tries:** `3` (retry attempts before failing)
+   - **Environment:** `production` (optional)
+   - **Artisan Path:** Enter `/home/master/applications/(app_folder)/public_html/artisan horizon` (to use Horizon instead of default queue:work)
+
+3. **Save and Start** the supervisor job
+
+4. **Verify Horizon is running:**
+
+   ```bash
+   # SSH into your server and check
+   ps aux | grep horizon
+
+   # Check Horizon logs
+   tail -f storage/logs/horizon.log
+   ```
+
+5. **Access Horizon dashboard** at: `https://your-domain.com/horizon`
+
+---
+
+**Note:** If Horizon doesn't work via the Artisan Path field, use the **standard queue worker** instead:
+- Leave **Artisan Path** as default (uses `queue:work`)
+- Keep all other settings the same
+- You won't have the Horizon dashboard, but queues will process normally
+
+---
+
+**Alternative: Use Cron Job (Not Recommended)**
+
+If supervisor isn't available, use cron as a fallback:
 
 ```bash
-sudo nano /etc/supervisor/conf.d/laravel-horizon.conf
+crontab -e
 ```
 
-Add this configuration (adjust paths for your application):
-
-```ini
-[program:laravel-horizon]
-process_name=%(program_name)s
-command=php /home/master/applications/your-app/public_html/artisan horizon
-autostart=true
-autorestart=true
-user=master
-redirect_stderr=true
-stdout_logfile=/home/master/applications/your-app/public_html/storage/logs/horizon.log
-stopwaitsecs=3600
-```
-
-Update and start Supervisor:
-
+Add:
 ```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl start laravel-horizon
+# Fallback: Keep Horizon running via cron
+* * * * * cd /home/master/applications/your-app/public_html && php artisan horizon >> /dev/null 2>&1 &
 ```
-
-Verify Horizon is running:
-
-```bash
-sudo supervisorctl status laravel-horizon
-```
-
-Access Horizon dashboard at: `https://your-domain.com/horizon`
 
 #### 6. Configure Cron Job for Scheduler
 

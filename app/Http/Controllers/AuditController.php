@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Audit;
 use App\Services\AuditService;
+use App\Services\QueueMonitor;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -11,7 +12,8 @@ use Illuminate\View\View;
 class AuditController extends Controller
 {
     public function __construct(
-        private AuditService $auditService
+        private AuditService $auditService,
+        private QueueMonitor $queueMonitor
     ) {
     }
 
@@ -24,8 +26,11 @@ class AuditController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 
+        $queueStats = $this->queueMonitor->getQueueStats();
+
         return view('audits.index', [
             'audits' => $audits,
+            'queueStats' => $queueStats,
         ]);
     }
 
@@ -143,6 +148,11 @@ class AuditController extends Controller
             'score' => null,
             'started_at' => null,
             'completed_at' => null,
+            'jobs_total' => 0,
+            'jobs_completed' => 0,
+            'jobs_failed' => 0,
+            'current_step' => null,
+            'error_message' => null,
         ]);
 
         $audit->issues()->delete();

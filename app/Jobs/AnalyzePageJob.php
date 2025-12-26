@@ -112,6 +112,8 @@ class AnalyzePageJob implements ShouldQueue
                 'issues_found' => $issuesFound,
             ]);
 
+            $this->page->audit->updateJobProgress("Analyzed {$this->page->url}");
+
         } catch (Exception $e) {
             Log::channel('audit')->error("✗ Page analysis failed: {$this->page->url}", [
                 'page_id' => $this->page->id,
@@ -308,6 +310,8 @@ class AnalyzePageJob implements ShouldQueue
             'url' => $this->page->url,
             'error' => $exception->getMessage(),
         ]);
+
+        $this->page->audit->markJobFailed("Failed analyzing {$this->page->url}: {$exception->getMessage()}");
 
         // Optionally create an issue for the failed analysis
         Issue::create([
