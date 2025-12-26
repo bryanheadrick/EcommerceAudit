@@ -70,7 +70,10 @@ class AggregateResultsJob implements ShouldQueue
             ]);
 
             // Update status to analyzing
-            $this->audit->update(['status' => 'analyzing']);
+            $this->audit->update([
+                'status' => 'analyzing',
+                'current_step' => 'Calculating final scores',
+            ]);
             Log::channel('audit')->info("Updated audit status to 'analyzing'");
 
             // Calculate category scores
@@ -117,6 +120,7 @@ class AggregateResultsJob implements ShouldQueue
                 'score' => $overallScore,
                 'completed_at' => now(),
                 'status' => 'completed',
+                'current_step' => 'Completed',
             ]);
 
             Log::channel('audit')->info("✓ AUDIT COMPLETED SUCCESSFULLY", [
@@ -137,6 +141,7 @@ class AggregateResultsJob implements ShouldQueue
             $this->audit->update([
                 'status' => 'failed',
                 'completed_at' => now(),
+                'error_message' => $e->getMessage(),
             ]);
 
             throw $e;
@@ -316,6 +321,7 @@ class AggregateResultsJob implements ShouldQueue
         $this->audit->update([
             'status' => 'failed',
             'completed_at' => now(),
+            'error_message' => $exception->getMessage(),
         ]);
     }
 }

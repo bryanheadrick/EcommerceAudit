@@ -11,13 +11,57 @@
     </x-slot>
 
     <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
             @if(session('success'))
-                <div class="mb-6">
-                    <x-alert type="success">
-                        {{ session('success') }}
-                    </x-alert>
+                <x-alert type="success">
+                    {{ session('success') }}
+                </x-alert>
+            @endif
+
+            <!-- Queue Health Status -->
+            @if($queueStats['total_pending'] > 0 || $queueStats['total_failed'] > 0)
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Queue Status</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Queue Worker</p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <div class="w-2 h-2 rounded-full {{ $queueStats['worker_running'] ? 'bg-green-500' : 'bg-red-500' }}"></div>
+                                    <p class="text-sm font-semibold {{ $queueStats['worker_running'] ? 'text-green-700' : 'text-red-700' }}">
+                                        {{ $queueStats['worker_running'] ? 'Running' : 'Not Running' }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Pending Jobs</p>
+                                <p class="text-2xl font-semibold text-gray-900">{{ $queueStats['total_pending'] }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Failed Jobs</p>
+                                <p class="text-2xl font-semibold {{ $queueStats['total_failed'] > 0 ? 'text-red-600' : 'text-gray-900' }}">{{ $queueStats['total_failed'] }}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Processing</p>
+                                <p class="text-2xl font-semibold text-blue-600">{{ $audits->where('status', 'crawling')->count() + $audits->where('status', 'analyzing')->count() }}</p>
+                            </div>
+                        </div>
+
+                        @if(!empty($queueStats['recent_failures']) && count($queueStats['recent_failures']) > 0)
+                            <div class="mt-4 pt-4 border-t border-gray-200">
+                                <h4 class="text-sm font-semibold text-gray-900 mb-2">Recent Failures</h4>
+                                <div class="space-y-2">
+                                    @foreach($queueStats['recent_failures'] as $failure)
+                                        <div class="text-xs text-red-800 bg-red-50 p-2 rounded">
+                                            <strong>{{ $failure['queue'] }}:</strong> {{ $failure['exception'] }}
+                                            <span class="text-gray-600 ml-2">{{ \Carbon\Carbon::parse($failure['failed_at'])->diffForHumans() }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                    </div>
                 </div>
             @endif
 
@@ -41,7 +85,7 @@
                                             </a>
                                             <p class="text-sm text-gray-500 mt-1">{{ $audit->url }}</p>
 
-                                            <div class="mt-3 flex items-center gap-4">
+                                            <div class="mt-3 flex items-center gap-4 flex-wrap">
                                                 <x-badge :color="$audit->status === 'completed' ? 'green' : ($audit->isProcessing() ? 'blue' : ($audit->status === 'failed' ? 'red' : 'gray'))">
                                                     {{ ucfirst($audit->status) }}
                                                 </x-badge>
@@ -49,6 +93,12 @@
                                                 <span class="text-sm text-gray-500">
                                                     {{ $audit->pages_crawled }} {{ Str::plural('page', $audit->pages_crawled) }}
                                                 </span>
+
+                                                @if($audit->isProcessing() && $audit->jobs_total > 0)
+                                                    <span class="text-sm text-blue-600 font-medium">
+                                                        {{ $audit->getProgressPercentage() }}% complete
+                                                    </span>
+                                                @endif
 
                                                 <span class="text-sm text-gray-500">
                                                     Created {{ $audit->created_at->diffForHumans() }}
@@ -60,6 +110,12 @@
                                                     </span>
                                                 @endif
                                             </div>
+
+                                            @if($audit->isProcessing() && $audit->current_step)
+                                                <div class="mt-2">
+                                                    <p class="text-xs text-gray-500">{{ $audit->current_step }}</p>
+                                                </div>
+                                            @endif
                                         </div>
 
                                         @if($audit->score !== null)

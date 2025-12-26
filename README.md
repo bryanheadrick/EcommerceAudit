@@ -16,7 +16,8 @@ An internal web application for conducting comprehensive conversion optimization
 - **PHP 8.2+** - Runtime environment
 - **PostgreSQL 15+** - Primary data store
 - **Redis 7+** - Queue backend and caching layer
-- **Laravel Horizon** - Queue monitoring and management
+- **Built-in Queue Monitor** - Real-time job progress tracking and queue health monitoring
+- **Laravel Horizon** - Advanced queue monitoring (optional, not required)
 - **Laravel Telescope** - Debugging and insight tool (dev only)
 
 ### Frontend
@@ -181,13 +182,29 @@ docker-compose exec app npm run dev
 
 **Start queue processing:**
 ```bash
-# Using Horizon (recommended)
-docker-compose exec app php artisan horizon
+# Option 1: Using standard Laravel queue worker
+docker-compose exec app php artisan queue:work
 
+# Option 2: Using Horizon (optional, for advanced monitoring)
+docker-compose exec app php artisan horizon
 # Access Horizon dashboard at http://localhost:8000/horizon
 ```
 
 **Monitor audit progress:**
+
+The application includes a **built-in queue monitoring system** that displays:
+- Real-time job progress with percentage completion
+- Current processing step for each audit
+- Visual progress bars on audit detail pages
+- Queue health indicators (worker status, pending jobs, failed jobs)
+- Recent job failures with error messages
+- Auto-refresh on audit pages (every 5 seconds during processing)
+
+Access monitoring through:
+- **Audit List Page**: Shows queue health status and processing audits
+- **Audit Detail Page**: Shows detailed progress with real-time updates
+
+You can also watch logs:
 ```bash
 # Watch the dedicated audit log in real-time
 docker-compose exec app tail -f storage/logs/audit.log
@@ -314,7 +331,7 @@ php artisan migrate --force
    - **Queue:** Leave blank (processes all) or enter `default`
    - **Maximum Tries:** `3` (retry attempts before failing)
    - **Environment:** `production` (optional)
-   - **Artisan Path:** Enter `horizon` (to use Horizon instead of default queue:work)
+   - **Artisan Path:** Enter `/home/master/applications/(app_folder)/public_html/artisan horizon` (to use Horizon instead of default queue:work)
 
 3. **Save and Start** the supervisor job
 

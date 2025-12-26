@@ -32,7 +32,7 @@
             @endif
 
             <!-- Status & Score Card -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg" @if($audit->isProcessing()) x-data="{ refreshInterval: null }" x-init="refreshInterval = setInterval(() => { window.location.reload() }, 5000)" x-on:beforeunload.window="clearInterval(refreshInterval)" @endif>
                 <div class="p-6">
                     <div class="flex items-center justify-between">
                         <div class="flex-1">
@@ -42,9 +42,35 @@
                                 </x-badge>
 
                                 @if($audit->isProcessing())
-                                    <span class="text-sm text-gray-500">Audit in progress... This may take several minutes.</span>
+                                    <span class="text-sm text-gray-500">Audit in progress... Page will auto-refresh every 5 seconds.</span>
                                 @endif
                             </div>
+
+                            @if($audit->isProcessing() && $audit->jobs_total > 0)
+                                <div class="mt-4">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="text-sm font-medium text-gray-700">Progress</span>
+                                        <span class="text-sm text-gray-600">{{ $audit->jobs_completed }} / {{ $audit->jobs_total }} jobs completed ({{ $audit->getProgressPercentage() }}%)</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ $audit->getProgressPercentage() }}%"></div>
+                                    </div>
+                                    @if($audit->current_step)
+                                        <p class="text-sm text-gray-500 mt-2">{{ $audit->current_step }}</p>
+                                    @endif
+                                </div>
+                            @endif
+
+                            @if($audit->hasFailedJobs())
+                                <div class="mt-4 p-3 bg-red-50 border border-red-200 rounded">
+                                    <p class="text-sm text-red-800">
+                                        <strong>Warning:</strong> {{ $audit->jobs_failed }} {{ Str::plural('job', $audit->jobs_failed) }} failed during processing.
+                                    </p>
+                                    @if($audit->error_message)
+                                        <p class="text-xs text-red-700 mt-1">{{ Str::limit($audit->error_message, 150) }}</p>
+                                    @endif
+                                </div>
+                            @endif
 
                             <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div>
